@@ -8,6 +8,7 @@ import numpy as np
 import os
 import pandas as pd
 import h5py
+from sklearn.preprocessing import MinMaxScaler
 
 
 def generate_graph_seq2seq_io_data(
@@ -60,8 +61,11 @@ def generate_train_val_test(args):
     data_file = args.df_filename
     if os.path.isfile(data_file):
         with h5py.File(data_file, 'r') as hf:
-            data = hf['pollution'][:]
-    print(data.shape)
+            X = hf['pollution'][:]
+    print(X.shape)
+    # normalize features
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    data = scaler.fit_transform(X.reshape(X.shape[0]*X.shape[1],1)).reshape(X.shape[0], X.shape[1])
     #df = pd.read_hdf(args.df_filename)
     # 0 is the latest observed sample.
     seq_len = 12
@@ -89,7 +93,8 @@ def generate_train_val_test(args):
     #num_val = num_samples - num_test - num_train
     num_train = (365+366)*24 # 2 years data
     num_val = (92)*24 # last 3 months
-    num_test = num_samples - num_train # remaning 1 year data
+    num_train = num_train - num_val
+    num_test = num_samples - num_train - num_val # remaning 1 year data
 
     # train
     x_train, y_train = x[:num_train], y[:num_train]

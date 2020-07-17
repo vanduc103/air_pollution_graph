@@ -2,10 +2,10 @@
 base_dir: data/model
 log_level: INFO
 data:
-  batch_size: 64
+  batch_size: 128
   dataset_dir: data/pollution
-  test_batch_size: 64
-  val_batch_size: 64
+  test_batch_size: 128
+  val_batch_size: 128
   graph_pkl_filename: data/sensor_graph/adj_mx.pkl
 
 model:
@@ -23,7 +23,7 @@ model:
   use_curriculum_learning: true
 
 train:
-  base_lr: 0.01
+  base_lr: 0.001
   dropout: 0
   epoch: 0
   epochs: 100

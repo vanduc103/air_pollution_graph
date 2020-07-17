@@ -9,6 +9,8 @@ import tensorflow as tf
 import time
 import yaml
 
+from sklearn.preprocessing import MinMaxScaler
+
 from lib import utils, metrics
 from lib.AMSGrad import AMSGrad
 from lib.metrics import masked_mae_loss
@@ -42,7 +44,7 @@ class DCRNNSupervisor(object):
                 self._logger.info((k, v.shape))
 
         # Build models.
-        scaler = self._data['scaler']
+        scaler = MinMaxScaler(feature_range=(0, 1)) #self._data['scaler']
         with tf.name_scope('Train'):
             with tf.variable_scope('DCRNN', reuse=False):
                 self._train_model = DCRNNModel(is_training=True, scaler=scaler,
