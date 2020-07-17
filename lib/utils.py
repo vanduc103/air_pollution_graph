@@ -64,6 +64,22 @@ class StandardScaler:
     def inverse_transform(self, data):
         return (data * self.std) + self.mean
 
+class MinMaxScaler:
+    """
+    Normalize the input
+    """
+
+    def __init__(self, minvalue, maxvalue):
+        self.minvalue = minvalue
+        self.maxvalue = maxvalue
+        self.max_minus_min = self.maxvalue - self.minvalue
+
+    def transform(self, data):
+        return (data - self.minvalue) / self.max_minus_min
+
+    def inverse_transform(self, data):
+        return (data * self.max_minus_min) + self.minvalue
+
 
 def add_simple_summary(writer, names, values, global_step):
     """
@@ -190,11 +206,11 @@ def load_dataset(dataset_dir, batch_size, test_batch_size=None, **kwargs):
         data['x_' + category] = cat_data['x']
         data['y_' + category] = cat_data['y']
     #scaler = StandardScaler(mean=data['x_train'][..., 0].mean(), std=data['x_train'][..., 0].std())
-    scaler = load_pickle(os.path.join(dataset_dir, 'scaler.pkl'))
+    scaler = MinMaxScaler(minvalue=data['x_train'][..., 0].min(), maxvalue=data['x_train'][..., 0].max())
     # Data format
-    '''for category in ['train', 'val', 'test']:
+    for category in ['train', 'val', 'test']:
         data['x_' + category][..., 0] = scaler.transform(data['x_' + category][..., 0])
-        data['y_' + category][..., 0] = scaler.transform(data['y_' + category][..., 0])'''
+        data['y_' + category][..., 0] = scaler.transform(data['y_' + category][..., 0])
     data['train_loader'] = DataLoader(data['x_train'], data['y_train'], batch_size, shuffle=True)
     data['val_loader'] = DataLoader(data['x_val'], data['y_val'], test_batch_size, shuffle=False)
     data['test_loader'] = DataLoader(data['x_test'], data['y_test'], test_batch_size, shuffle=False)
