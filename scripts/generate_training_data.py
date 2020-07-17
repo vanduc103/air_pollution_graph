@@ -8,7 +8,9 @@ import numpy as np
 import os
 import pandas as pd
 import h5py
+
 from sklearn.preprocessing import MinMaxScaler
+from pickle import dump
 
 
 def generate_graph_seq2seq_io_data(
@@ -66,6 +68,8 @@ def generate_train_val_test(args):
     # normalize features
     scaler = MinMaxScaler(feature_range=(0, 1))
     data = scaler.fit_transform(X.reshape(X.shape[0]*X.shape[1],1)).reshape(X.shape[0], X.shape[1])
+    # save the scaler
+    dump(scaler, open(os.path.join(args.output_dir, 'scaler.pkl'), 'wb'))
     #df = pd.read_hdf(args.df_filename)
     # 0 is the latest observed sample.
     seq_len = 12

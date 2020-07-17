@@ -206,6 +206,9 @@ def load_graph_data(pkl_filename):
     sensor_ids, sensor_id_to_ind, adj_mx = load_pickle(pkl_filename)
     return sensor_ids, sensor_id_to_ind, adj_mx
 
+def load_scaler(dataset_dir):
+    scaler = load_pickle(os.path.join(dataset_dir, 'scaler.pkl'))
+    return scaler
 
 def load_pickle(pickle_file):
     try:
