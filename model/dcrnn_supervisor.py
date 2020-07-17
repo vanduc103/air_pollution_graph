@@ -42,7 +42,8 @@ class DCRNNSupervisor(object):
                 self._logger.info((k, v.shape))
 
         # Build models.
-        scaler = utils.load_scaler(**self._data_kwargs) #self._data['scaler']
+        scaler = self._data['scaler']
+        print(scaler)
         with tf.name_scope('Train'):
             with tf.variable_scope('DCRNN', reuse=False):
                 self._train_model = DCRNNModel(is_training=True, scaler=scaler,
