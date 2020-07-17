@@ -63,8 +63,8 @@ def generate_train_val_test(args):
     data_file = args.df_filename
     if os.path.isfile(data_file):
         with h5py.File(data_file, 'r') as hf:
-            X = hf['pollution'][:]
-    print(X.shape)
+            data = hf['pollution'][:]
+    print(data.shape)
     #df = pd.read_hdf(args.df_filename)
     # 0 is the latest observed sample.
     seq_len = 12
