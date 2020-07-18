@@ -9,10 +9,6 @@ import os
 import pandas as pd
 import h5py
 
-from sklearn.preprocessing import MinMaxScaler
-from pickle import dump
-
-
 def generate_graph_seq2seq_io_data(
         data, x_offsets, y_offsets, add_time_in_day=False, add_day_in_week=False, scaler=None
 ):
@@ -90,8 +86,8 @@ def generate_train_val_test(args):
     #num_test = round(num_samples * 0.2)
     #num_train = round(num_samples * 0.7)
     #num_val = num_samples - num_test - num_train
-    num_train = (365+366)*24 # 2 years data
-    num_val = (92)*24 # last 3 months
+    num_train = 8760 + 8784 # 2 years data
+    num_val = 92*24 # last 3 months
     num_train = num_train - num_val
     num_test = num_samples - num_train - num_val # remaning 1 year data
 

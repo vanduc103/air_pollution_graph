@@ -11,7 +11,7 @@ import yaml
 
 from lib import utils, metrics
 from lib.AMSGrad import AMSGrad
-from lib.metrics import masked_mae_loss
+from lib.metrics import masked_mae_loss, masked_rmse_loss
 
 from model.dcrnn_model import DCRNNModel
 
@@ -43,7 +43,6 @@ class DCRNNSupervisor(object):
 
         # Build models.
         scaler = self._data['scaler']
-        print(scaler)
         with tf.name_scope('Train'):
             with tf.variable_scope('DCRNN', reuse=False):
                 self._train_model = DCRNNModel(is_training=True, scaler=scaler,
@@ -77,8 +76,11 @@ class DCRNNSupervisor(object):
         labels = self._train_model.labels[..., :output_dim]
 
         null_val = 0.
-        self._loss_fn = masked_mae_loss(scaler, null_val)
-        self._train_loss = self._loss_fn(preds=preds, labels=labels)
+        loss_ratio = 1024/25
+        scaler = None
+        #self._loss_fn = masked_mae_loss(scaler, null_val)
+        self._loss_fn = masked_rmse_loss(scaler, null_val, loss_ratio)
+        self._train_loss = self._loss_fn(preds=preds, labels=labels) #+ tf.reduce_mean(0.01 * self._train_model.loss)
 
         tvars = tf.trainable_variables()
         grads = tf.gradients(self._train_loss, tvars)

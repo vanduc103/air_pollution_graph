@@ -2,10 +2,10 @@
 base_dir: data/model
 log_level: INFO
 data:
-  batch_size: 128
+  batch_size: 64
   dataset_dir: data/pollution
-  test_batch_size: 128
-  val_batch_size: 128
+  test_batch_size: 64
+  val_batch_size: 64
   graph_pkl_filename: data/sensor_graph/adj_mx.pkl
 
 model:
@@ -15,7 +15,7 @@ model:
   input_dim: 1
   l1_decay: 0
   max_diffusion_step: 2
-  num_nodes: 25
+  num_nodes: 1024
   num_rnn_layers: 2
   output_dim: 1
   rnn_units: 64
