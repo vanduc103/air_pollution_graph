@@ -76,8 +76,7 @@ class DCRNNSupervisor(object):
         labels = self._train_model.labels[..., :output_dim]
 
         null_val = 0.
-        loss_ratio = 1024/25
-        scaler = None
+        loss_ratio = 1.
         #self._loss_fn = masked_mae_loss(scaler, null_val)
         self._loss_fn = masked_rmse_loss(scaler, null_val, loss_ratio)
         self._train_loss = self._loss_fn(preds=preds, labels=labels) #+ tf.reduce_mean(0.01 * self._train_model.loss)

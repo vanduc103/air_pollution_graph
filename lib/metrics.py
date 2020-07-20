@@ -109,12 +109,11 @@ def masked_mse_loss(scaler, null_val):
     return loss
 
 
-def masked_rmse_loss(scaler, null_val, loss_ratio=1024/25):
+def masked_rmse_loss(scaler, null_val, loss_ratio=1.):
     def loss(preds, labels):
         if scaler:
             preds = scaler.inverse_transform(preds)
             labels = scaler.inverse_transform(labels)
-        labels = tf.reshape(labels, tf.shape(preds))
         return masked_rmse_tf(preds=preds, labels=labels, null_val=null_val, loss_ratio=loss_ratio)
 
     return loss
