@@ -228,7 +228,7 @@ class DCRNNSupervisor(object):
             val_loss, val_mae = np.asscalar(val_results['loss']), np.asscalar(val_results['mae'])
 
             # Compute test error.
-            tes_results = self.run_epoch_generator(sess, self._test_model,
+            test_results = self.run_epoch_generator(sess, self._test_model,
                                                    self._data['test_loader'].get_iterator(),
                                                    training=False)
             test_loss, test_mae = np.asscalar(test_results['loss']), np.asscalar(test_results['mae'])
