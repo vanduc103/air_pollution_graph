@@ -76,9 +76,8 @@ class DCRNNSupervisor(object):
         labels = self._train_model.labels[..., :output_dim]
 
         null_val = 0.
-        loss_ratio = 1.
         #self._loss_fn = masked_mae_loss(scaler, null_val)
-        self._loss_fn = masked_rmse_loss(scaler, null_val, loss_ratio)
+        self._loss_fn = masked_rmse_loss(scaler, null_val)
         self._train_loss = self._loss_fn(preds=preds, labels=labels) #+ tf.reduce_mean(0.01 * self._train_model.loss)
 
         tvars = tf.trainable_variables()
@@ -228,12 +227,18 @@ class DCRNNSupervisor(object):
                                                    training=False)
             val_loss, val_mae = np.asscalar(val_results['loss']), np.asscalar(val_results['mae'])
 
+            # Compute test error.
+            tes_results = self.run_epoch_generator(sess, self._test_model,
+                                                   self._data['test_loader'].get_iterator(),
+                                                   training=False)
+            test_loss, test_mae = np.asscalar(test_results['loss']), np.asscalar(test_results['mae'])
+
             utils.add_simple_summary(self._writer,
                                      ['loss/train_loss', 'metric/train_mae', 'loss/val_loss', 'metric/val_mae'],
                                      [train_loss, train_mae, val_loss, val_mae], global_step=global_step)
             end_time = time.time()
-            message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, val_mae: {:.4f} lr:{:.6f} {:.1f}s'.format(
-                self._epoch, epochs, global_step, train_mae, val_mae, new_lr, (end_time - start_time))
+            message = 'Epoch [{}/{}] ({}) train_loss: {:.4f}, val_loss: {:.4f}, test_loss: {:.4f} lr:{:.6f} {:.1f}s'.format(
+                self._epoch, epochs, global_step, train_loss, val_loss, test_loss, new_lr, (end_time - start_time))
             self._logger.info(message)
             if self._epoch % test_every_n_epochs == test_every_n_epochs - 1:
                 self.evaluate(sess)
@@ -266,6 +271,7 @@ class DCRNNSupervisor(object):
 
         # y_preds:  a list of (batch_size, horizon, num_nodes, output_dim)
         test_loss, y_preds = test_results['loss'], test_results['outputs']
+        self._logger.info('Test loss: %.4f' % (test_loss))
         utils.add_simple_summary(self._writer, ['loss/test_loss'], [test_loss], global_step=global_step)
 
         y_preds = np.concatenate(y_preds, axis=0)
@@ -273,10 +279,10 @@ class DCRNNSupervisor(object):
         predictions = []
         y_truths = []
         for horizon_i in range(self._data['y_test'].shape[1]):
-            y_truth = scaler.inverse_transform(self._data['y_test'][:, horizon_i, :, 0])
+            y_truth = scaler.inverse_transform(self._data['y_test'][:, 0:horizon_i+1, :, 0])
             y_truths.append(y_truth)
 
-            y_pred = scaler.inverse_transform(y_preds[:y_truth.shape[0], horizon_i, :, 0])
+            y_pred = scaler.inverse_transform(y_preds[:y_truth.shape[0], 0:horizon_i+1, :, 0])
             predictions.append(y_pred)
 
             mae = metrics.masked_mae_np(y_pred, y_truth, null_val=0)

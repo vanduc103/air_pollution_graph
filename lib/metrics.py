@@ -44,7 +44,7 @@ def masked_mae_tf(preds, labels, null_val=np.nan):
     return tf.reduce_mean(loss)
 
 
-def masked_rmse_tf(preds, labels, null_val=np.nan, loss_ratio=1):
+def masked_rmse_tf(preds, labels, null_val=np.nan):
     """
     Accuracy with masking.
     :param preds:
@@ -52,7 +52,7 @@ def masked_rmse_tf(preds, labels, null_val=np.nan, loss_ratio=1):
     :param null_val:
     :return:
     """
-    return tf.sqrt(masked_mse_tf(preds=preds, labels=labels, null_val=null_val) * loss_ratio)
+    return tf.sqrt(masked_mse_tf(preds=preds, labels=labels, null_val=null_val))
 
 
 def masked_rmse_np(preds, labels, null_val=np.nan):
@@ -109,12 +109,12 @@ def masked_mse_loss(scaler, null_val):
     return loss
 
 
-def masked_rmse_loss(scaler, null_val, loss_ratio=1.):
+def masked_rmse_loss(scaler, null_val):
     def loss(preds, labels):
         if scaler:
             preds = scaler.inverse_transform(preds)
             labels = scaler.inverse_transform(labels)
-        return masked_rmse_tf(preds=preds, labels=labels, null_val=null_val, loss_ratio=loss_ratio)
+        return masked_rmse_tf(preds=preds, labels=labels, null_val=null_val)
 
     return loss
 
