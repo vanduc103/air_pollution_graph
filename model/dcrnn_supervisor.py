@@ -49,6 +49,12 @@ class DCRNNSupervisor(object):
                                                batch_size=self._data_kwargs['batch_size'],
                                                adj_mx=adj_mx, **self._model_kwargs)
 
+        with tf.name_scope('Validate'):
+            with tf.variable_scope('DCRNN', reuse=True):
+                self._val_model = DCRNNModel(is_training=False, scaler=scaler,
+                                              batch_size=self._data_kwargs['val_batch_size'],
+                                              adj_mx=adj_mx, **self._model_kwargs)
+
         with tf.name_scope('Test'):
             with tf.variable_scope('DCRNN', reuse=True):
                 self._test_model = DCRNNModel(is_training=False, scaler=scaler,
@@ -76,9 +82,8 @@ class DCRNNSupervisor(object):
         labels = self._train_model.labels[..., :output_dim]
 
         null_val = 0.
-        #self._loss_fn = masked_mae_loss(scaler, null_val)
         self._loss_fn = masked_rmse_loss(scaler, null_val)
-        self._train_loss = self._loss_fn(preds=preds, labels=labels) #+ tf.reduce_mean(0.01 * self._train_model.loss)
+        self._train_loss = self._loss_fn(preds=preds, labels=labels)
 
         tvars = tf.trainable_variables()
         grads = tf.gradients(self._train_loss, tvars)
@@ -222,23 +227,17 @@ class DCRNNSupervisor(object):
 
             global_step = sess.run(tf.train.get_or_create_global_step())
             # Compute validation error.
-            val_results = self.run_epoch_generator(sess, self._test_model,
+            val_results = self.run_epoch_generator(sess, self._val_model,
                                                    self._data['val_loader'].get_iterator(),
                                                    training=False)
             val_loss, val_mae = np.asscalar(val_results['loss']), np.asscalar(val_results['mae'])
-
-            # Compute test error.
-            test_results = self.run_epoch_generator(sess, self._test_model,
-                                                   self._data['test_loader'].get_iterator(),
-                                                   training=False)
-            test_loss, test_mae = np.asscalar(test_results['loss']), np.asscalar(test_results['mae'])
 
             utils.add_simple_summary(self._writer,
                                      ['loss/train_loss', 'metric/train_mae', 'loss/val_loss', 'metric/val_mae'],
                                      [train_loss, train_mae, val_loss, val_mae], global_step=global_step)
             end_time = time.time()
-            message = 'Epoch [{}/{}] ({}) train_loss: {:.4f}, val_loss: {:.4f}, test_loss: {:.4f} lr:{:.6f} {:.1f}s'.format(
-                self._epoch, epochs, global_step, train_loss, val_loss, test_loss, new_lr, (end_time - start_time))
+            message = 'Epoch [{}/{}] ({}) train_loss: {:.4f}, val_loss: {:.4f}, lr:{:.6f} {:.1f}s'.format(
+                self._epoch, epochs, global_step, train_loss, val_loss, new_lr, (end_time - start_time))
             self._logger.info(message)
             if self._epoch % test_every_n_epochs == test_every_n_epochs - 1:
                 self.evaluate(sess)
@@ -271,38 +270,101 @@ class DCRNNSupervisor(object):
 
         # y_preds:  a list of (batch_size, horizon, num_nodes, output_dim)
         test_loss, y_preds = test_results['loss'], test_results['outputs']
-        self._logger.info('Test loss: %.4f' % (test_loss))
+        self._logger.info('Test loss: {:.6f}'.format(test_loss))
         utils.add_simple_summary(self._writer, ['loss/test_loss'], [test_loss], global_step=global_step)
 
         y_preds = np.concatenate(y_preds, axis=0)
         scaler = self._data['scaler']
-        predictions = []
-        y_truths = []
+        y_truths, predictions = [], []
+        from sklearn.metrics import r2_score
         for horizon_i in range(self._data['y_test'].shape[1]):
             y_truth = scaler.inverse_transform(self._data['y_test'][:, 0:horizon_i+1, :, 0])
             y_truths.append(y_truth)
-
             y_pred = scaler.inverse_transform(y_preds[:y_truth.shape[0], 0:horizon_i+1, :, 0])
             predictions.append(y_pred)
 
-            mae = metrics.masked_mae_np(y_pred, y_truth, null_val=0)
-            mape = metrics.masked_mape_np(y_pred, y_truth, null_val=0)
-            rmse = metrics.masked_rmse_np(y_pred, y_truth, null_val=0)
+            # compute error
+            mae, mape, rmse, r2score = [], [], [], []
+            for _, (y_pred, y_truth) in enumerate(zip(predictions, y_truths)):
+                mae.append(metrics.masked_mae_np(y_pred, y_truth, null_val=0))
+                mape.append(metrics.masked_mape_np(y_pred, y_truth, null_val=0))
+                rmse.append(metrics.masked_rmse_np(y_pred, y_truth, null_val=0))
+                r2score.append(r2_score(y_truth.flatten(), y_pred.flatten()))
+
             self._logger.info(
-                "Horizon {:02d}, MAE: {:.2f}, MAPE: {:.4f}, RMSE: {:.2f}".format(
-                    horizon_i + 1, mae, mape, rmse
+                "Horizon {:02d}, MAE: {:.4f}, MAPE: {:.4f}, RMSE: {:.6f}, R2 score: {:.4f}".format(
+                    horizon_i + 1, np.mean(mae), np.mean(mape), np.mean(rmse), np.mean(r2score)
                 )
             )
             utils.add_simple_summary(self._writer,
                                      ['%s_%d' % (item, horizon_i + 1) for item in
                                       ['metric/rmse', 'metric/mape', 'metric/mae']],
-                                     [rmse, mape, mae],
+                                     [np.mean(rmse), np.mean(mape), np.mean(mae)],
                                      global_step=global_step)
-        outputs = {
-            'predictions': predictions,
-            'groundtruth': y_truths
-        }
-        return outputs
+
+    def spatiotemporal_evaluate(self, sess, horizon=1, **kwargs):
+        global_step = sess.run(tf.train.get_or_create_global_step())
+        mae, mape, rmse, r2score = [], [], [], []
+        from sklearn.metrics import r2_score
+        for s in range(self._data['y_test'].shape[2]):
+            self._logger.info("s = %d" % (s))
+            test_results = self.run_epoch_generator(sess, self._test_model,
+                                                    self._data['test_loader'].get_iterator(s),
+                                                    return_output=True,
+                                                    training=False)
+
+            # y_preds:  a list of (batch_size, horizon, num_nodes, output_dim)
+            y_preds = test_results['outputs']
+            y_preds = np.concatenate(y_preds, axis=0)
+
+            scaler = self._data['scaler']
+            y_truths, predictions = [], []
+            y_truth = scaler.inverse_transform(self._data['y_test'][:, 0:horizon, :, 0])
+            y_truths.append(y_truth)
+            y_pred = scaler.inverse_transform(y_preds[:y_truth.shape[0], 0:horizon, :, 0])
+            predictions.append(y_pred)
+
+            # compute error
+            for _, (y_pred, y_truth) in enumerate(zip(predictions, y_truths)):
+                mae.append(metrics.masked_mae_np(y_pred, y_truth, null_val=0))
+                mape.append(metrics.masked_mape_np(y_pred, y_truth, null_val=0))
+                rmse.append(metrics.masked_rmse_np(y_pred, y_truth, null_val=0))
+                r2score.append(r2_score(y_truth.flatten(), y_pred.flatten()))
+
+        self._logger.info(
+            "Spatiotemporal Error at horizon {:02d}, MAE: {:.4f}, MAPE: {:.4f}, RMSE: {:.6f}, R2 score: {:.4f}".format(
+                horizon, np.mean(mae), np.mean(mape), np.mean(rmse), np.mean(r2score)
+            )
+        )
+
+    def r2_evaluate(self, sess, horizon=12, **kwargs):
+        global_step = sess.run(tf.train.get_or_create_global_step())
+
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import numpy as np
+        import pandas as pd
+
+        test_results = self.run_epoch_generator(sess, self._test_model,
+                                                self._data['test_loader'].get_iterator(),
+                                                return_output=True,
+                                                training=False)
+
+        # y_preds:  a list of (batch_size, horizon, num_nodes, output_dim)
+        y_preds = test_results['outputs']
+        y_preds = np.concatenate(y_preds, axis=0)
+
+        scaler = self._data['scaler']
+        y_truth = scaler.inverse_transform(self._data['y_test'][:, 0:horizon, :, 0])
+        y_pred = scaler.inverse_transform(y_preds[:y_truth.shape[0], 0:horizon, :, 0])
+
+        # Create a dataset:
+        df = pd.DataFrame({'x': y_truth.flatten(), 'y': y_pred.flatten() })
+        sns.set()
+        sns.regplot( 'x', 'y', data=df, fit_reg=True)
+        plt.plot( 'x', 'x', data=df, linestyle='dashed', color='olive', linewidth=1)
+        plt.savefig('plot.png')
+
 
     def load(self, sess, model_filename):
         """

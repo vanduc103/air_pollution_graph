@@ -337,6 +337,35 @@ class HybridSupervisor(object):
             )
         )
 
+    def r2_evaluate(self, sess, horizon=12, **kwargs):
+        global_step = sess.run(tf.train.get_or_create_global_step())
+
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import numpy as np
+        import pandas as pd
+
+        test_results = self.run_epoch_generator(sess, self._test_model,
+                                                self._data['test_loader'].get_iterator(),
+                                                return_output=True,
+                                                training=False)
+
+        # y_preds:  a list of (batch_size, horizon, num_nodes, output_dim)
+        y_preds = test_results['outputs']
+        y_preds = np.concatenate(y_preds, axis=0)
+
+        scaler = self._data['scaler']
+        y_truth = scaler.inverse_transform(self._data['y_test'][:, 0:horizon, :, 0])
+        y_pred = scaler.inverse_transform(y_preds[:y_truth.shape[0], 0:horizon, :, 0])
+
+        # Create a dataset:
+        df = pd.DataFrame({'x': y_truth.flatten(), 'y': y_pred.flatten()})
+        sns.set()
+        sns.regplot( x=y_truth.flatten(), y=y_pred.flatten(), fit_reg=True, label='R2 score = 0.26')
+        plt.plot( 'x', 'x', data=df, linestyle='dashed', color='olive', linewidth=1, label='y=x')
+        plt.legend()
+        plt.savefig('plot_hybrid.png')
+
     def load(self, sess, model_filename):
         """
         Restore from saved model.

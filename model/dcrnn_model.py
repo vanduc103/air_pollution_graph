@@ -7,7 +7,7 @@ import tensorflow as tf
 from tensorflow.contrib import legacy_seq2seq
 
 from lib.metrics import masked_mae_loss
-from model.dcrnn_cell import DCGRUCell
+from model.dcrnn_cell_lstm import DCGRUCell
 
 
 class DCRNNModel(object):
@@ -79,32 +79,6 @@ class DCRNNModel(object):
         # Project the output to output_dim.
         outputs = tf.stack(outputs[:-1], axis=1)
         self._outputs = tf.reshape(outputs, (batch_size, horizon, num_nodes, output_dim), name='outputs')
-
-        '''# Fully connected
-        fc_size = 1000
-        flatten = tf.contrib.layers.flatten(outputs)
-        flatten_dim = flatten.get_shape()[1].value
-        W_fc = tf.get_variable(name='W_fc', shape=[flatten_dim, fc_size], 
-		        initializer=tf.contrib.layers.xavier_initializer())
-        b_fc = tf.Variable(tf.zeros(fc_size))
-        fc = tf.nn.relu(tf.add(tf.matmul(flatten, W_fc), b_fc))
-        fc_l2 = tf.nn.l2_loss(W_fc)
-
-        # drop out layer
-        dropout = tf.layers.dropout(
-            inputs=fc, rate=0.5, training=True)
-
-        # output layer
-        output_size = horizon * num_nodes * output_dim
-        W_output = tf.get_variable(name='W_output', shape=[fc_size, output_size],   
-                        initializer=tf.contrib.layers.xavier_initializer())
-        b_output = tf.Variable(tf.zeros(output_size))
-        output = tf.add(tf.matmul(dropout, W_output), b_output)
-        self._outputs = output
-
-        # l2 regularization
-        l2 = tf.nn.l2_loss(W_output)
-        self._loss = l2'''
         self._merged = tf.summary.merge_all()
 
     @staticmethod

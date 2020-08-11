@@ -58,7 +58,6 @@ class HybridModel(object):
         self._labels = tf.placeholder(tf.float32, shape=(batch_size, horizon, num_nodes, output_dim), name='labels')
 
         cell = HybridCell(rnn_units, num_nodes=num_nodes)
-        cell_with_projection = HybridCell(rnn_units, num_nodes=num_nodes, num_proj=output_dim)
         lstm_cells = [cell] * num_rnn_layers
         lstm_cells = tf.contrib.rnn.MultiRNNCell(lstm_cells, state_is_tuple=True)
 

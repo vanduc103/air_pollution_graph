@@ -4,8 +4,8 @@ import geopy.distance
 
 # calculate distance
 def cal1():
-    newfile = open('distances.csv', 'w')
-    newfile.write('from,to,cost\n')
+    distance_file = open('distances.csv', 'w')
+    distance_file.write('from,to,cost\n')
     
     station_ids, lats, lons = [], [], []
     with open('pm10_stations.csv', 'r') as f:
@@ -21,13 +21,13 @@ def cal1():
             cord1 = (lats[i], lons[i])
             cord2 = (lats[j], lons[j])
             d = int(geopy.distance.distance(cord1, cord2).km * 1000)
-            newfile.write(s_from + ',' + s_to + ',' + str(d) + '\n')
-    newfile.flush()
-    newfile.close()
+            distance_file.write(s_from + ',' + s_to + ',' + str(d) + '\n')
+    distance_file.flush()
+    distance_file.close()
 
 def cal2():
-    newfile = open('distances_grid.csv', 'w')
-    newfile.write('from,to,cost\n')
+    distance_file = open('distances_grid.csv', 'w')
+    distance_file.write('from,to,cost\n')
     for i in range(1024):
         for j in range(1024):
             s_from = str(i)
@@ -35,13 +35,13 @@ def cal2():
             x = (int(i/32), i - int(i/32)*32)
             y = (int(j/32), j - int(j/32)*32)
             d = int(math.sqrt(sum([(a - b) ** 2 for a, b in zip(x, y)])))
-            newfile.write(s_from + ',' + s_to + ',' + str(d) + '\n')
-    newfile.flush()
-    newfile.close()
+            distance_file.write(s_from + ',' + s_to + ',' + str(d) + '\n')
+    distance_file.flush()
+    distance_file.close()
 
 def cal3():
-    newfile = open('distances_grid_pm10.csv', 'w')
-    newfile.write('from,to,cost\n')
+    distance_file = open('distances_grid_pm10.csv', 'w')
+    distance_file.write('from,to,cost\n')
     stations_list = []
     with open('graph_sensor_ids_pm10_grid.txt') as f:
         for row in f:
@@ -54,9 +54,43 @@ def cal3():
             x = (int(s_from/32), s_from - int(s_from/32)*32)
             y = (int(s_to/32), s_to - int(s_to/32)*32)
             d = int(math.sqrt(sum([(a - b) ** 2 for a, b in zip(x, y)])))
-            newfile.write(str(s_from) + ',' + str(s_to) + ',' + str(d) + '\n')
-    newfile.flush()
-    newfile.close()
+            distance_file.write(str(s_from) + ',' + str(s_to) + ',' + str(d) + '\n')
+    distance_file.flush()
+    distance_file.close()
 
-cal3()
+def cal4():
+    distance_file = open('distances_grid_traffic.csv', 'w')
+    distance_file.write('from,to,cost\n')
+    pollution_stations = []
+    with open('graph_sensor_ids_traffic.txt') as f:
+        rows = []
+        for row in f:
+            rows.append(row.strip())
+
+    pollution_stations = rows[0].split(',')
+    print(pollution_stations)
+    traffic_stations = rows[1].split(',')
+    
+    for i in range(len(pollution_stations)):
+        # distances between pollution stations
+        for j in range(len(pollution_stations)):
+            s_from = int(pollution_stations[i])
+            s_to = int(pollution_stations[j])
+            x = (int(s_from/32), s_from - int(s_from/32)*32)
+            y = (int(s_to/32), s_to - int(s_to/32)*32)
+            d = int(math.sqrt(sum([(a - b) ** 2 for a, b in zip(x, y)])))
+            distance_file.write(str(s_from) + ',' + str(s_to) + ',' + str(d) + '\n')
+    
+        # distances with traffic stations
+        for j in range(len(traffic_stations)):
+            s_from = int(pollution_stations[i])
+            s_to = int(traffic_stations[j])
+            x = (int(s_from/32), s_from - int(s_from/32)*32)
+            y = (int(s_to/32), s_to - int(s_to/32)*32)
+            d = int(math.sqrt(sum([(a - b) ** 2 for a, b in zip(x, y)])))
+            distance_file.write(str(s_from) + ',' + str(s_to) + ',' + str(d) + '\n')
+    distance_file.flush()
+    distance_file.close()
+
+cal4()
 

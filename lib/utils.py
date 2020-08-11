@@ -34,7 +34,7 @@ class DataLoader(object):
         self.xs = xs
         self.ys = ys
 
-    def get_iterator(self):
+    def get_iterator(self, s=-1):
         self.current_ind = 0
 
         def _wrapper():
@@ -42,12 +42,77 @@ class DataLoader(object):
                 start_ind = self.batch_size * self.current_ind
                 end_ind = min(self.size, self.batch_size * (self.current_ind + 1))
                 x_i = self.xs[start_ind: end_ind, ...]
+                if s >= 0:
+                    x_i[:, :, s, :] = 0.0
                 y_i = self.ys[start_ind: end_ind, ...]
                 yield (x_i, y_i)
                 self.current_ind += 1
 
         return _wrapper()
 
+class DataLoader_v2(object):
+    def __init__(self, xs, w_x, tf_x, sp_x, ch_x, ys, batch_size, pad_with_last_sample=True, shuffle=False):
+        """
+
+        :param xs:
+        :param ys:
+        :param batch_size:
+        :param pad_with_last_sample: pad with the last sample to make number of samples divisible to batch_size.
+        """
+        self.batch_size = batch_size
+        self.current_ind = 0
+        if pad_with_last_sample:
+            num_padding = (batch_size - (len(xs) % batch_size)) % batch_size
+            x_padding = np.repeat(xs[-1:], num_padding, axis=0)
+            w_padding = np.repeat(w_x[-1:], num_padding, axis=0)
+            tf_padding = np.repeat(tf_x[-1:], num_padding, axis=0)
+            sp_padding = np.repeat(sp_x[-1:], num_padding, axis=0)
+            ch_padding = np.repeat(ch_x[-1:], num_padding, axis=0)
+
+            y_padding = np.repeat(ys[-1:], num_padding, axis=0)
+
+            xs = np.concatenate([xs, x_padding], axis=0)
+            w_x = np.concatenate([w_x, w_padding], axis=0)
+            tf_x = np.concatenate([tf_x, tf_padding], axis=0)
+            sp_x = np.concatenate([sp_x, sp_padding], axis=0)
+            ch_x = np.concatenate([ch_x, ch_padding], axis=0)
+
+            ys = np.concatenate([ys, y_padding], axis=0)
+        self.size = len(xs)
+        self.num_batch = int(self.size // self.batch_size)
+        if shuffle:
+            permutation = np.random.permutation(self.size)
+            xs, w_x, tf_x, sp_x, ch_x, ys = xs[permutation], w_x[permutation], tf_x[permutation], sp_x[permutation], ch_x[permutation], ys[permutation]
+        self.xs = xs
+        self.w_x = w_x
+        self.tf_x = tf_x
+        self.sp_x = sp_x
+        self.ch_x = ch_x
+        self.ys = ys
+
+    def get_iterator(self, s=-1):
+        self.current_ind = 0
+
+        def _wrapper():
+            while self.current_ind < self.num_batch:
+                start_ind = self.batch_size * self.current_ind
+                end_ind = min(self.size, self.batch_size * (self.current_ind + 1))
+                x_i = self.xs[start_ind: end_ind, ...]
+                w_i = self.w_x[start_ind: end_ind, ...]
+                tf_i = self.tf_x[start_ind: end_ind, ...]
+                sp_i = self.sp_x[start_ind: end_ind, ...]
+                ch_i = self.ch_x[start_ind: end_ind, ...]
+                if s >= 0:
+                    x_i[:, :, s, :] = 0.0
+                    w_i[:, :, s, :] = 0.0
+                    tf_i[:, :, s, :] = 0.0
+                    sp_i[:, :, s, :] = 0.0
+                    ch_i[:, :, s, :] = 0.0
+                y_i = self.ys[start_ind: end_ind, ...]
+                yield (x_i, w_i, tf_i, sp_i, ch_i, y_i)
+                self.current_ind += 1
+
+        return _wrapper()
 
 class StandardScaler:
     """
@@ -199,7 +264,7 @@ def get_total_trainable_parameter_size():
     return total_parameters
 
 
-def load_dataset(dataset_dir, batch_size, test_batch_size=None, **kwargs):
+def load_dataset(dataset_dir, batch_size, val_batch_size, test_batch_size=None, **kwargs):
     data = {}
     for category in ['train', 'val', 'test']:
         cat_data = np.load(os.path.join(dataset_dir, category + '.npz'))
@@ -212,8 +277,35 @@ def load_dataset(dataset_dir, batch_size, test_batch_size=None, **kwargs):
         data['x_' + category][..., 0] = scaler.transform(data['x_' + category][..., 0])
         data['y_' + category][..., 0] = scaler.transform(data['y_' + category][..., 0])
     data['train_loader'] = DataLoader(data['x_train'], data['y_train'], batch_size, shuffle=True)
-    data['val_loader'] = DataLoader(data['x_val'], data['y_val'], test_batch_size, shuffle=False)
+    data['val_loader'] = DataLoader(data['x_val'], data['y_val'], val_batch_size, shuffle=False)
     data['test_loader'] = DataLoader(data['x_test'], data['y_test'], test_batch_size, shuffle=False)
+    data['scaler'] = scaler
+
+    return data
+
+def load_dataset_v2(dataset_dir, weather_dir, traffic_dir, speed_dir, china_dir, batch_size, val_batch_size, test_batch_size=None, **kwargs):
+    data = {}
+    for category in ['train', 'val', 'test']:
+        cat_data = np.load(os.path.join(dataset_dir, category + '.npz'))
+        weather_data = np.load(os.path.join(weather_dir, category + '.npz'))
+        traffic_data = np.load(os.path.join(traffic_dir, category + '.npz'))
+        speed_data = np.load(os.path.join(speed_dir, category + '.npz'))
+        china_data = np.load(os.path.join(china_dir, category + '.npz'))
+        data['x_' + category] = cat_data['x']
+        data['w_' + category] = weather_data['x']
+        data['t_' + category] = traffic_data['x']
+        data['s_' + category] = speed_data['x']
+        data['c_' + category] = china_data['x']
+        data['y_' + category] = cat_data['y']
+    #scaler = StandardScaler(mean=data['x_train'][..., 0].mean(), std=data['x_train'][..., 0].std())
+    scaler = MinMaxScaler(minvalue=data['x_train'][..., 0].min(), maxvalue=data['x_train'][..., 0].max())
+    # Data format
+    for category in ['train', 'val', 'test']:
+        data['x_' + category][..., 0] = scaler.transform(data['x_' + category][..., 0])
+        data['y_' + category][..., 0] = scaler.transform(data['y_' + category][..., 0])
+    data['train_loader'] = DataLoader_v2(data['x_train'], data['w_train'], data['t_train'], data['s_train'], data['c_train'], data['y_train'], batch_size, shuffle=True)
+    data['val_loader'] = DataLoader_v2(data['x_val'], data['w_val'], data['t_val'], data['s_val'], data['c_val'], data['y_val'], val_batch_size, shuffle=False)
+    data['test_loader'] = DataLoader_v2(data['x_test'], data['w_test'], data['t_test'], data['s_test'], data['c_test'], data['y_test'], test_batch_size, shuffle=False)
     data['scaler'] = scaler
 
     return data

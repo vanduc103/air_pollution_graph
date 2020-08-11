@@ -12,26 +12,41 @@ from model.dcrnn_supervisor import DCRNNSupervisor
 def run_dcrnn(args):
     with open(args.config_filename) as f:
         config = yaml.load(f)
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     tf_config = tf.ConfigProto()
-    if not args.use_cpu_only:
-        tf_config = tf.ConfigProto(device_count={'GPU': 0})
-        tf_config.gpu_options.allow_growth = True
+    tf_config.gpu_options.allow_growth = True
     graph_pkl_filename = config['data']['graph_pkl_filename']
     _, _, adj_mx = load_graph_data(graph_pkl_filename)
     with tf.Session(config=tf_config) as sess:
         supervisor = DCRNNSupervisor(adj_mx=adj_mx, **config)
         supervisor.load(sess, config['train']['model_filename'])
-        outputs = supervisor.evaluate(sess)
-        np.savez_compressed(args.output_filename, **outputs)
-        print('Predictions saved as {}.'.format(args.output_filename))
+        
+        '''# Calculate total FLOPS and number of parameters
+        run_meta = tf.RunMetadata()
+        opts = tf.profiler.ProfileOptionBuilder.float_operation() 
+        flops = tf.profiler.profile(sess.graph, run_meta=run_meta, cmd='op', options=opts)
+
+        opts = tf.profiler.ProfileOptionBuilder.trainable_variables_parameter()    
+        params = tf.profiler.profile(sess.graph, run_meta=run_meta, cmd='op', options=opts)
+
+        print("{:,} --- {:,}".format(flops.total_float_ops, params.total_parameters))
+        exit()'''
+
+        if args.eval == 'spatiotemporal':
+            supervisor.spatiotemporal_evaluate(sess, horizon=1)
+        elif args.eval == 'r2':
+            supervisor.r2_evaluate(sess, horizon=12)
+        else:
+            supervisor.evaluate(sess)
 
 
 if __name__ == '__main__':
     sys.path.append(os.getcwd())
     parser = argparse.ArgumentParser()
-    parser.add_argument('--use_cpu_only', default=False, type=str, help='Whether to run tensorflow on cpu.')
+    parser.add_argument('--gpu', default='', type=str, help='Set GPU to use.')
     parser.add_argument('--config_filename', default='data/model/pretrained/METR-LA/config.yaml', type=str,
                         help='Config file for pretrained model.')
-    parser.add_argument('--output_filename', default='data/dcrnn_predictions.npz')
+    parser.add_argument('--eval', default='', type=str, help='Which evaluate to use')
     args = parser.parse_args()
     run_dcrnn(args)
